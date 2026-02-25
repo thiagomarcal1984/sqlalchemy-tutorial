@@ -12,7 +12,7 @@ with engine.connect() as conn:
 # Sintaxe com a função `connect`:
 with engine.connect() as conn:
     conn.execute(text("create table some_table(x int, y int)"))
-    conn.execute(                                                                                                                                                         
+    conn.execute(
         text("INSERT INTO some_table VALUES (:x, :y)"),
         [{"x": 1, "y": 1}, {"x" : 2, "y": 4}],
     )
@@ -118,7 +118,7 @@ address_table = Table(
     metadata_obj,
     Column('id', Integer, primary_key=True),
     Column('user_id', ForeignKey('user_account.id'), nullable=False),
-    Column('email', String, nullable=False),
+    Column('email_address', String, nullable=False),
 )
 
 # Criando as tabelas:
@@ -214,7 +214,70 @@ users_table = metadata_obj.tables["user_account"]
 addresses_table = metadata_obj.tables["address"]
 ```
 # Working with Data
-https://docs.sqlalchemy.org/en/20/tutorial/data.html
+
+## Using INSERT Statements
+```python
+from sqlalchemy import insert
+stmt = insert(user_table).values(name='spongebob', fullname='Spongebob Squarepants')
+print(stmt)
+'''Saída: INSERT INTO user_account (name, fullname) VALUES (:name, :fullname)'''
+# Note que a declaração (stmt) não foi compilada, por isso os parâmetros
+# são precedidos de dois pontos:
+
+compiled = stmt.compile()
+compiled.params
+'''Saída: {'name': 'spongebob', 'fullname': 'Spongebob Squarepants'}'''
+
+# Executando a declaração:
+
+with engine.connect() as conn:
+    result = conn.execute(stmt)
+    conn.commit()
+
+# Imprimndo o valor da chave primária inserida no banco:
+result.inserted_primary_key
+# Tupla de Saída: (1,)
+
+# Imprimindo a declaração insert sem usar o método `values`:
+print(insert(user_table))
+'''Saída: INSERT INTO user_account (id, name, fullname) VALUES (:id, :name, :fullname)'''
+# Note que todas as colunas da tabela são inseridas na declaração `VALUES` do SQL gerado.
+
+# Usando uma inserção de uma lista de de dicionários:
+with engine.connect() as conn:
+    result = conn.execute(
+        insert(user_table), # Primeiro parâmetro é a declaração
+        [
+            {'name' : 'sandy', 'fullname' : 'Sandy Cheeks'},
+            {'name' : 'patrick', 'fullname' : 'Patrick Star'},
+        ]
+    )
+    conn.commit()
+'''
+Saída:
+2026-02-25 17:07:33,973 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-02-25 17:07:33,973 INFO sqlalchemy.engine.Engine INSERT INTO user_account (name, fullname) VALUES (?, ?)
+2026-02-25 17:07:33,974 INFO sqlalchemy.engine.Engine [generated in 0.00106s] [('sandy', 'Sandy Cheeks'), ('patrick', 'Patrick Star')]
+2026-02-25 17:07:33,974 INFO sqlalchemy.engine.Engine COMMIT
+'''
+
+# Inserção de valores default da tabela (nem todo backend de DB suporta):
+print(insert(user_table).values().compile(engine))
+''' Saída: INSERT INTO user_account DEFAULT VALUES '''
+
+# Usando um `INSERT` com retorno:
+insert_stmt = insert(address_table).returning(address_table.c.id, address_table.c.email_address)
+print(insert_stmt)
+
+# Inserindo dados a partir de um `select` e mostrando o SQL do `INSERT` com retorno:
+select_stmt = select(user_table.c.id, user_table.c.name + '@aol.com')
+insert_stmt = insert(address_table).from_select(
+    ['user_id', 'email_address'],
+    select_stmt,
+)
+print(insert_stmt.returning(address_table.c.id, address_table.c.email_address))
+```
+## Using SELECT Statements
 ```python
 # To be continued...
 ```
