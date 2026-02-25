@@ -86,5 +86,135 @@ with Session(engine) as session:
 https://docs.sqlalchemy.org/en/20/tutorial/metadata.html
 
 ```python
-# To be continued.
+# Criando um objeto `MetaData` - ele serve como um mapeamento entre
+# os nomes das tabelas e os objetos `Table` do SqlAlchemy.
+from sqlalchemy import MetaData
+metadata_obj = MetaData()
+
+# Criando uma tabela `user_account` após importar os tipos Table, Column, 
+# Integer e String (note que não precisamos informar o engine/querystring):
+from sqlalchemy import Table, Column, Integer, String
+user_table = Table(
+    'user_account',
+    metadata_obj,
+    Column('id', Integer, primary_key=True),
+    Column('name', String(30)),
+    Column('fullname', String),
+)
+
+# Exibindo informações da coluna `name`:
+user_table.c.name
+
+# Exibindo os nomes das colunas:
+user_table.c.keys()
+
+# Resgatando a chave primária da tabela:
+user_table.primary_key
+
+# Usando chave estrangeira na tabela:
+from sqlalchemy import ForeignKey
+address_table = Table(
+    "address",
+    metadata_obj,
+    Column('id', Integer, primary_key=True),
+    Column('user_id', ForeignKey('user_account.id'), nullable=False),
+    Column('email', String, nullable=False),
+)
+
+# Criando as tabelas:
+from sqlalchemy import create_engine, text
+engine = create_engine('sqlite+pysqlite:///:memory:', echo=True)
+metadata_obj.create_all(engine)
+
+# Excluindo as tabelas:
+metadata_obj.drop_all(engine) 
+```
+
+## Estabelecendo uma base declarativa
+https://docs.sqlalchemy.org/en/20/tutorial/metadata.html#using-orm-declarative-forms-to-define-table-metadata
+```python
+# Criando a classe base:
+from sqlalchemy.orm import DeclarativeBase
+class Base(DeclarativeBase):
+    pass
+
+# Acessando o atributo de classe `DeclarativeBase.metadata`:
+Base.metadata
+
+# Criando as classes `User` e `Address` (na linha de comando não use
+# mais de uma quebra de linha por classe):
+from typing import List, Optional
+from sqlalchemy import String, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+class User(Base):
+    __tablename__ = "user_account"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str]  = mapped_column(String(30))
+    fullname: Mapped[Optional[str]]
+    
+    addresses: Mapped[List['Address']] = relationship(back_populates='user')
+
+    def __repr__(self) -> str:
+        return f"User(id={self.id!r}, name={self.name!r}, fullname={self.fullname!r})"
+
+# Declarando a classe usuário sem as anotações de tipo das colunas:
+'''
+class User(Base):
+    __tablename__ = "user_account"
+
+    id = mapped_column(Integer, primary_key=True)
+    name = mapped_column(String(30), nullable=False)
+    fullname = mapped_column(String)
+
+    addresses = relationship("Address", back_populates="user")
+
+    # ... definition continues
+'''
+class Address(Base):
+    __tablename__ = 'address'
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email_address: Mapped[str]
+    user_id = mapped_column(ForeignKey('user_account.id'))
+    
+    user: Mapped['User'] = relationship(back_populates='addresses')
+
+    def __repr__(self) -> str:
+        return f"Address(id={self.id!r}, email_address={self.email_address!r})"
+
+# Criando o usuário Sandy:
+sandy = User(name='sandy', fullname='Sandy Cheeks')
+
+# Criando as tabelas a partir da base declarativa:
+from sqlalchemy import create_engine
+engine = create_engine('sqlite+pysqlite:///:memory:', echo=True)
+
+Base.metadata.create_all(engine)
+```
+## Table Reflection (Reflexão de tabela)
+https://docs.sqlalchemy.org/en/20/tutorial/metadata.html#table-reflection
+
+```python
+# Exemplo de reflexão de tabela
+some_table = Table("some_table", metadata_obj, autoload_with=engine)
+
+# Outro exemplo, mas usando o objeto metadata de uma base declarativa:
+endereco = Table('address', Base.metadata, autoload_with=engine)
+```
+## Refletindo todas as tabelas de uma vez só (página separada para table reflection)
+https://docs.sqlalchemy.org/en/20/core/reflection.html#reflecting-all-tables-at-once
+
+```python
+# metadata_obj = MetaData()
+metadata_obj = Base.metadata
+metadata_obj.reflect(bind=engine)
+users_table = metadata_obj.tables["user_account"]
+addresses_table = metadata_obj.tables["address"]
+```
+# Working with Data
+https://docs.sqlalchemy.org/en/20/tutorial/data.html
+```python
+# To be continued...
 ```
