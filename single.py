@@ -1,4 +1,5 @@
 import os 
+from typing import Optional
 from sqlalchemy import (
     create_engine,
     # ForeignKey,
@@ -18,10 +19,10 @@ class Employee(Base):
     __tablename__ = 'employee'
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str]
-    type: Mapped[str]
+    type: Mapped[Optional[int]]
 
     __mapper_args__ = {
-        'polymorphic_identity' : 'employee',
+        'polymorphic_identity' : 0,
         'polymorphic_on' : 'type',
     }
 
@@ -29,17 +30,17 @@ class Employee(Base):
         return f"{self.__class__.__name__}({self.name!r})"
 
 class Engineer(Employee):
-    engineer_name: Mapped[str] = mapped_column(nullable=True)
+    engineer_name: Mapped[Optional[str]]
 
     __mapper_args__ = {
-        'polymorphic_identity' : 'engineer'
+        'polymorphic_identity' : 1
     }
     
 class Manager(Employee):
-    manager_name: Mapped[str] = mapped_column(nullable=True)
+    manager_name: Mapped[Optional[str]]
 
     __mapper_args__ = {
-        'polymorphic_identity' : 'manager'
+        'polymorphic_identity' : 2
     }
 
 path = 'db.sqlite'
@@ -51,6 +52,7 @@ if os.path.exists(path):
 Base.metadata.create_all(engine)
 
 with Session(engine) as session:
+    emp = Employee(name='Empregado')
     eng = Engineer(
         name = 'Djiskstra',
         engineer_name = 'Eng. Djikstra',
@@ -59,13 +61,14 @@ with Session(engine) as session:
         name = 'Chiavenatto',
         manager_name = 'Adm. Chiavenatto',
     )
+    session.add(emp)
     session.add(eng)
     session.add(mng)
     session.commit()
 
-    print('Nomes: ')
+    print('Nomes subclasses: ')
     print(f"\t{eng.engineer_name}")
     print(f"\t{mng.manager_name}")
 
     print('Lista: ')
-    [ print(obj) for obj in session.scalars(select(Employee)).all() ]
+    [ print(f"\t{obj}") for obj in session.scalars(select(Employee)).all() ]
