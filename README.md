@@ -345,3 +345,170 @@ WHERE ? = address.user_id
 
 # ORM Mapped Class Overview
 https://docs.sqlalchemy.org/en/21/orm/mapping_styles.html
+
+## ORM Mapping Styles
+### Declarative Mapping
+https://docs.sqlalchemy.org/en/21/orm/mapping_styles.html#declarative-mapping
+
+Mapeamento declarativo de uma **classe de Entidade** consiste em criar uma classe cujos atributos mapeiam colunas de um banco de dados.
+
+A declaração de entidades que usam mapeamento declarativo pode ser feita usando:
+1. Herança de uma class-base: uma classe herda de `DeclarativeBase` - geralmente essa nova classe é chamada apenas de `Base`. A classe `Base` se refere a um objeto `registry` que mantém uma coleção de classes mapeadas relacionadas, assim como o objeto `MetaData` que retém uma coleção de objetos `Table` com as quais as classes são mapeadas:
+> Exemplo:
+>```python
+> # declarative_inheritance.py
+> from sqlalchemy.orm import DeclarativeBase
+> 
+> class Base(DeclarativeBase):
+>     pass
+> 
+> class User(Base):
+>     __tablename__ = ''user
+>     # Resto do código
+>```
+2. Decorator `mapped`: o decorator `mapped` presente em um objeto `registry` é aplicado às classes que farão o mapeamento declarativo.
+> Exemplo:
+>```python
+> # declarative_decorator.py
+> from sqlalchemy.orm import registry
+> 
+> reg = registry()
+> 
+> @reg.mapped
+> class User(Base):
+>     __tablename__ = ''user
+>     # Resto do código
+>```
+
+A declaração dos **metadados da tabela associada** nas classes mapeadas pode acontecer de duas formas: 
+
+1. usando a função `mapped_column` para cada atributo da classe da entidade; ou 
+> Exemplo: 
+> ```python
+> # declarative_inheritance.py
+> from sqlalchemy import String
+> from sqlalchemy.orm import (
+>     DeclarativeBase, 
+>     Mapped, 
+>     mapped_column, 
+> )
+> 
+> class Base(DeclarativeBase):
+>     pass
+> 
+> class User(Base):
+>     __tablename__ = 'user'
+>     id: Mapped[int] = mapped_column(primary_key=True)
+>     name: Mapped[str]
+>     fullname: Mapped[str] = mapped_column(String(30))
+>     fullname: Mapped[str | None ]
+> # Resto do código
+> ```
+2. referenciando um objeto `Table` criado à parte (método conhecido como "Tabela Imperativa com Declarativa" ou "Declarativa Híbrida"). Se você refletir uma tabela do database (engenharia reversa), você pode usar seus metadados numa classe de entidade.
+
+> Exemplo:
+> ```python
+> # imperative.py
+> from sqlalchemy import (
+>     Column,
+>     Integer, 
+>     String, 
+>     Table, 
+> )
+> from sqlalchemy.orm import registry
+> 
+> reg = registry()
+> 
+> user_table = Table(
+>     'user_account',
+>     reg.metadata,
+>     Column('id', Integer, primary_key=True),
+>     Column('name', String(30)),
+>     Column('fullname', String),
+> )
+> 
+> class User:
+>     pass
+> 
+> reg.map_imperatively(User, user_table)
+> ```
+
+### Imperative Mapping
+https://docs.sqlalchemy.org/en/21/orm/mapping_styles.html#imperative-mapping
+
+```python
+# imperative.py
+from sqlalchemy import (
+    Column,
+    create_engine,
+    ForeignKey,
+    Integer, 
+    String, 
+    Table, 
+)
+from sqlalchemy.orm import (
+    registry,
+    relationship,
+    Session,
+)
+
+mapper_registry = registry()
+
+# Primeiro as tabelas...
+user_table = Table(
+    'user_account',
+    mapper_registry.metadata,
+    Column('id', Integer, primary_key=True),
+    Column('name', String(30)),
+    Column('fullname', String),
+)
+
+address_table = Table(
+    'address',
+    mapper_registry.metadata,
+    Column('id', Integer, primary_key=True),
+    Column('user_id', Integer, ForeignKey('user_account.id')),
+    Column('email_address', String),
+)
+
+# Depois as classes de entidade...
+class User:
+    def __repr__(self):
+        return f"User(id={self.id!r}, name={self.name!r}, fullname={self.fullname!r})"
+
+class Address:
+    def __repr__(self) -> str:
+        return f"Address(id={self.id!r}, email_address={self.email_address!r})"
+
+# E depois os mapeamentos e as propriedades.
+mapper_registry.map_imperatively(
+    User, 
+    user_table,
+    properties = {
+        'addresses' : relationship(
+            Address, # Note que chamamos a classe, não a string com seu nome.
+            back_populates='user',
+            order_by=address_table.c.id,
+        ),
+    }
+)
+
+mapper_registry.map_imperatively(
+    Address,
+    address_table,
+    properties = {
+        'user' : relationship(User, back_populates='addresses')
+    }
+)
+# Resto do código de interação com o banco.
+```
+
+## Mapped Class Essential Components
+https://docs.sqlalchemy.org/en/21/orm/mapping_styles.html#mapped-class-essential-components
+
+4 classes gerais de informações de configuração procurados pela classe `Mapper`:
+
+1. a classe a ser mapeada;
+2. a tabela ou outro objeto de cláusula from;
+3. o dicionário `properties`;
+4. outros parâmetros de configuração do mapper (`__mapper_args__`).
